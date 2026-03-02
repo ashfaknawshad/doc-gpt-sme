@@ -37,6 +37,9 @@ export default function Home() {
 
       const json = await res.json();
       setDocId(json.document_id);
+      
+      // Clear any cached Q&A state since we have a new document
+      sessionStorage.clear();
     } catch (err) {
       console.error("Upload error:", err);
       setError(err instanceof Error ? err.message : "Upload failed");
@@ -83,8 +86,8 @@ export default function Home() {
               Open Document
             </a>
             <br />
-            <a href={`/ask?vendor=${encodeURIComponent(vendor)}`} style={link}>
-              Ask About This Vendor
+            <a href={`/ask?doc=${docId}`} style={link}>
+              Ask About This Document
             </a>
           </div>
         )}

@@ -1,22 +1,44 @@
 "use client";
 
-import { useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 
 const API = "http://localhost:8000";
 const USER_ID = "00000000-0000-0000-0000-000000000001";
 
 export default function Ask() {
   const search = useSearchParams();
+  const router = useRouter();
 
   // Optional scopes from URL
   const vendor = search.get("vendor") ?? "";
   const doc = search.get("doc") ?? "";
+  const urlQuestion = search.get("q") ?? "";
 
   const [q, setQ] = useState("");
   const [resp, setResp] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Restore state from sessionStorage or URL on mount
+  useEffect(() => {
+    const storageKey = `ask_state_${vendor}_${doc}`;
+    const saved = sessionStorage.getItem(storageKey);
+    
+    if (urlQuestion) {
+      // If question in URL, use it
+      setQ(urlQuestion);
+    } else if (saved) {
+      // Otherwise restore from sessionStorage
+      try {
+        const parsed = JSON.parse(saved);
+        setQ(parsed.question || "");
+        setResp(parsed.response || null);
+      } catch (e) {
+        console.error("Failed to restore state:", e);
+      }
+    }
+  }, [vendor, doc, urlQuestion]);
 
   async function ask() {
     if (!q.trim()) return;
@@ -46,6 +68,21 @@ export default function Ask() {
 
       const json = await res.json();
       setResp(json);
+
+      // Save to sessionStorage for persistence across navigation
+      const storageKey = `ask_state_${vendor}_${doc}`;
+      sessionStorage.setItem(storageKey, JSON.stringify({
+        question: q,
+        response: json,
+      }));
+
+      // Update URL with question (for bookmarking/sharing)
+      const params = new URLSearchParams();
+      if (vendor) params.set("vendor", vendor);
+      if (doc) params.set("doc", doc);
+      params.set("q", q);
+      router.replace(`/ask?${params.toString()}`, { scroll: false });
+
     } catch (err) {
       console.error("Ask error:", err);
       setError(err instanceof Error ? err.message : "Request failed");
@@ -78,6 +115,11 @@ export default function Ask() {
       <input
         value={q}
         onChange={(e) => setQ(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !loading && q.trim()) {
+            ask();
+          }
+        }}
         placeholder="e.g. What is the total? What is the vendor name? When is it due?"
         style={{
           width: "100%",
